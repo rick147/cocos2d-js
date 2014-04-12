@@ -3078,6 +3078,24 @@ bool js_cocos2dx_CCDrawNode_setBlendFunc(JSContext *cx, uint32_t argc, jsval *vp
     return js_cocos2dx_setBlendFunc<DrawNode>(cx, argc, vp);
 }
 
+bool js_cocos2dx_CCSprite_textureLoaded(JSContext *cx, uint32_t argc, jsval *vp)
+{
+    JSObject *obj;
+    Sprite* cobj;
+    obj = JS_THIS_OBJECT(cx, vp);
+    js_proxy_t *proxy = jsb_get_js_proxy(obj);
+    cobj = (Sprite*)(proxy ? proxy->ptr : NULL);
+    TEST_NATIVE_OBJECT(cx, cobj);
+    
+    bool ret = false;
+    if( cobj->getTexture() )
+        ret = true;
+    
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(ret));
+    
+    return true;
+}
+
 bool js_cocos2dx_CCTexture2D_setTexParameters(JSContext *cx, uint32_t argc, jsval *vp)
 {
     JSObject* obj = (JSObject *)JS_THIS_OBJECT(cx, vp);
@@ -3877,11 +3895,14 @@ bool js_cocos2dx_CCGLProgram_setUniformLocationWith4f(JSContext *cx, uint32_t ar
 		cobj->setUniformLocationWith2f(arg0, arg1, arg2);
 	}
     if(argc == 4) {
+        ok &= JS::ToNumber(cx, argv[2], &arg2);
         ok &= JS::ToNumber(cx, argv[3], &arg3);
         JSB_PRECONDITION2(ok, cx, false, "Error processing arguments");
 		cobj->setUniformLocationWith3f(arg0, arg1, arg2, arg3);
     }
     if(argc == 5) {
+        ok &= JS::ToNumber(cx, argv[2], &arg2);
+        ok &= JS::ToNumber(cx, argv[3], &arg3);
         ok &= JS::ToNumber(cx, argv[4], &arg4);
         JSB_PRECONDITION2(ok, cx, false, "Error processing arguments");
 		cobj->setUniformLocationWith4f(arg0, arg1, arg2, arg3, arg4);
@@ -4074,9 +4095,9 @@ bool js_cocos2dx_NodeGrid_setGrid(JSContext *cx, uint32_t argc, jsval *vp)
     return false;
 }
 
-// cc.SAXParser.getInstance()
-bool js_SAXParser_getInstance(JSContext *cx, unsigned argc, JS::Value *vp) {
-    __JSSAXDelegator* delegator = __JSSAXDelegator::getInstance();
+// cc.PlistParser.getInstance()
+bool js_PlistParser_getInstance(JSContext *cx, unsigned argc, JS::Value *vp) {
+    __JSPlistDelegator* delegator = __JSPlistDelegator::getInstance();
     SAXParser* parser = delegator->getParser();
     
     jsval jsret;
@@ -4096,9 +4117,9 @@ bool js_SAXParser_getInstance(JSContext *cx, unsigned argc, JS::Value *vp) {
     
     return true;
 }
-// cc.SAXParser.getInstance().parse(filepath)
-bool js_SAXParser_parse(JSContext *cx, unsigned argc, JS::Value *vp) {
-    __JSSAXDelegator* delegator = __JSSAXDelegator::getInstance();
+// cc.PlistParser.getInstance().parse(filepath)
+bool js_PlistParser_parse(JSContext *cx, unsigned argc, JS::Value *vp) {
+    __JSPlistDelegator* delegator = __JSPlistDelegator::getInstance();
     
     bool ok = true;
     jsval *argv = JS_ARGV(cx, vp);
@@ -4124,55 +4145,12 @@ bool js_SAXParser_parse(JSContext *cx, unsigned argc, JS::Value *vp) {
     JS_ReportError(cx, "js_SAXParser_parse : wrong number of arguments: %d, was expecting %d", argc, 1);
     return false;
 }
-// cc.SAXParser.getInstance().preloadPlist(filepath)
-bool js_SAXParser_preloadPlist(JSContext *cx, unsigned argc, JS::Value *vp) {
-    __JSSAXDelegator* delegator = __JSSAXDelegator::getInstance();
-    
-    bool ok = true;
-    jsval *argv = JS_ARGV(cx, vp);
-    if (argc == 1) {
-        std::string arg0;
-        ok &= jsval_to_std_string(cx, argv[0], &arg0);
-        JSB_PRECONDITION2(ok, cx, false, "Error processing arguments");
-        
-        ok &= delegator->preloadPlist(arg0);
-        if(!ok)
-            JS_ReportError(cx, "js_SAXParser_preloadPlist : file not found %d", &arg0, 1);
-        return true;
-    }
-    JS_ReportError(cx, "js_SAXParser_parse : wrong number of arguments: %d, was expecting %d", argc, 1);
-    return false;
-}
-// cc.SAXParser.getInstance().unloadPlist(filepath)
-bool js_SAXParser_unloadPlist(JSContext *cx, unsigned argc, JS::Value *vp) {
-    return true;
-}
-// cc.SAXParser.getInstance().getList(key)
-bool js_SAXParser_getList(JSContext *cx, unsigned argc, JS::Value *vp) {
-    __JSSAXDelegator* delegator = __JSSAXDelegator::getInstance();
-    
-    bool ok = true;
-    jsval *argv = JS_ARGV(cx, vp);
-    if (argc == 1) {
-        std::string arg0;
-        ok &= jsval_to_std_string(cx, argv[0], &arg0);
-        JSB_PRECONDITION2(ok, cx, false, "Error processing arguments");
-        
-        std::string value = delegator->getList(arg0);
-        jsval ret = std_string_to_jsval(cx, value);
-        JS_SET_RVAL(cx, vp, ret);
-        
-        return true;
-    }
-    JS_ReportError(cx, "js_SAXParser_parse : wrong number of arguments: %d, was expecting %d", argc, 1);
-    return false;
-}
 
-cocos2d::SAXParser* __JSSAXDelegator::getParser() {
+cocos2d::SAXParser* __JSPlistDelegator::getParser() {
     return &_parser;
 }
 
-std::string __JSSAXDelegator::parse(const std::string& path) {
+std::string __JSPlistDelegator::parse(const std::string& path) {
     _result.clear();
     
     SAXParser parser;
@@ -4185,11 +4163,11 @@ std::string __JSSAXDelegator::parse(const std::string& path) {
     return _result;
 }
 
-__JSSAXDelegator::~__JSSAXDelegator(){
+__JSPlistDelegator::~__JSPlistDelegator(){
     CCLOGINFO("deallocing __JSSAXDelegator: %p", this);
 }
 
-void __JSSAXDelegator::startElement(void *ctx, const char *name, const char **atts) {
+void __JSPlistDelegator::startElement(void *ctx, const char *name, const char **atts) {
     _isStoringCharacters = true;
     _currentValue.clear();
     
@@ -4208,7 +4186,7 @@ void __JSSAXDelegator::startElement(void *ctx, const char *name, const char **at
     }
 }
 
-void __JSSAXDelegator::endElement(void *ctx, const char *name) {
+void __JSPlistDelegator::endElement(void *ctx, const char *name) {
     _isStoringCharacters = false;
     std::string elementName = (char*)name;
     
@@ -4232,7 +4210,7 @@ void __JSSAXDelegator::endElement(void *ctx, const char *name) {
     }
 }
 
-void __JSSAXDelegator::textHandler(void *ctx, const char *ch, int len) {
+void __JSPlistDelegator::textHandler(void *ctx, const char *ch, int len) {
     CC_UNUSED_PARAM(ctx);
     std::string text((char*)ch, 0, len);
     
@@ -4489,6 +4467,7 @@ void register_cocos2dx_js_extensions(JSContext* cx, JSObject* global)
     JS_DefineFunction(cx, tmpObj, "create", JSB_CCCatmullRomTo_actionWithDuration, 2, JSPROP_READONLY | JSPROP_PERMANENT);
     
     JS_DefineFunction(cx, jsb_cocos2d_Sprite_prototype, "setBlendFunc", js_cocos2dx_CCSprite_setBlendFunc, 2, JSPROP_ENUMERATE | JSPROP_PERMANENT);
+    JS_DefineFunction(cx, jsb_cocos2d_Sprite_prototype, "textureLoaded", js_cocos2dx_CCSprite_textureLoaded, 0, JSPROP_ENUMERATE | JSPROP_PERMANENT);
     JS_DefineFunction(cx, jsb_cocos2d_SpriteBatchNode_prototype, "setBlendFunc", js_cocos2dx_CCSpriteBatchNode_setBlendFunc, 2, JSPROP_ENUMERATE | JSPROP_PERMANENT);
 	JS_DefineFunction(cx, jsb_cocos2d_SpriteBatchNode_prototype, "getDescendants", js_cocos2dx_SpriteBatchNode_getDescendants, 0, JSPROP_ENUMERATE | JSPROP_PERMANENT);
     //JS_DefineFunction(cx, jsb_cocos2d_MotionStreak_prototype, "setBlendFunc", js_cocos2dx_CCMotionStreak_setBlendFunc, 2, JSPROP_ENUMERATE | JSPROP_PERMANENT);
@@ -4540,13 +4519,10 @@ void register_cocos2dx_js_extensions(JSContext* cx, JSObject* global)
 	JS_DefineFunction(cx, tmpObj, "create", js_callFunc, 1, JSPROP_READONLY | JSPROP_PERMANENT);
     JS_DefineFunction(cx, jsb_cocos2d_CallFunc_prototype, "initWithFunction", js_cocos2dx_CallFunc_initWithFunction, 1, JSPROP_ENUMERATE | JSPROP_PERMANENT);
     
-    tmpObj = JSVAL_TO_OBJECT(anonEvaluate(cx, global, "(function () { return cc.SAXParser; })()"));
-	JS_DefineFunction(cx, tmpObj, "getInstance", js_SAXParser_getInstance, 0, JSPROP_READONLY | JSPROP_PERMANENT);
-    tmpObj = JSVAL_TO_OBJECT(anonEvaluate(cx, global, "(function () { return cc.SAXParser.getInstance(); })()"));
-	JS_DefineFunction(cx, tmpObj, "parse", js_SAXParser_parse, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-    JS_DefineFunction(cx, tmpObj, "preloadPlist", js_SAXParser_preloadPlist, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-    JS_DefineFunction(cx, tmpObj, "unloadPlist", js_SAXParser_unloadPlist, 1, JSPROP_READONLY | JSPROP_PERMANENT);
-    JS_DefineFunction(cx, tmpObj, "getList", js_SAXParser_getList, 1, JSPROP_READONLY | JSPROP_PERMANENT);
+    tmpObj = JSVAL_TO_OBJECT(anonEvaluate(cx, global, "(function () { return cc.PlistParser; })()"));
+	JS_DefineFunction(cx, tmpObj, "getInstance", js_PlistParser_getInstance, 0, JSPROP_READONLY | JSPROP_PERMANENT);
+    tmpObj = JSVAL_TO_OBJECT(anonEvaluate(cx, global, "(function () { return cc.PlistParser.getInstance(); })()"));
+	JS_DefineFunction(cx, tmpObj, "parse", js_PlistParser_parse, 1, JSPROP_READONLY | JSPROP_PERMANENT);
 
     
 	tmpObj = JSVAL_TO_OBJECT(anonEvaluate(cx, global, "(function () { return cc.GLProgram; })()"));
